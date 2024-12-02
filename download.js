@@ -9,7 +9,7 @@ document.getElementById('downloadButton').addEventListener('click', function() {
     link.href = fileUrl;
     
     // Set the download attribute with a filename
-    link.download = 'wix.tx';
+    link.download = 'wix.txt';
     
     // Append to the body
     document.body.appendChild(link);
