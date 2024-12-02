@@ -1,6 +1,6 @@
 document.getElementById('downloadButton').addEventListener('click', function() {
     // Replace 'your-file-path-here.exe' with the actual path to your downloadable file
-    const fileUrl = 'WIX-Executor.exe';
+    const fileUrl = 'wix.txt';
     
     // Create a temporary anchor element
     const link = document.createElement('a');
