@@ -12,7 +12,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GH_TOKEN }}  # Required for pushing changes
+        token: ${{ secrets.GH_TOKEN }}  # Use the token here
         persist-credentials: false
 
     - name: Scrape webpage
