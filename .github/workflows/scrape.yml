@@ -33,6 +33,6 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
-        git add data.json
+        git add extracted-data.json
         git commit -m "Auto-update extracted data in JSON format"
         git push "https://${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:main
