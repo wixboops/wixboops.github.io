@@ -2,31 +2,34 @@ import json
 import hashlib
 from urllib.parse import urlparse
 
+# Add domains to this list that should always be blocked
+BLOCKED_DOMAINS = [
+    "vercel.app",
+    "dock1.com",
+    "585.eu",
+    "cissp.or.id"
+]
+
 with open("extracted-data.json", "r", encoding="utf-8") as file:
     data = json.load(file)
 
-html_content = """
+html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URL Validator with Batching</title>
+    <title>Secure Link Validator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .status-dot {
+        .status-dot {{
             width: 12px;
             height: 12px;
             border-radius: 50%;
             margin-right: 10px;
             transition: all 0.3s ease;
-        }
-        iframe { display: none; }
-        .cached-error a {
-            opacity: 0.5;
-            pointer-events: none;
-            text-decoration: line-through;
-        }
+        }}
+        iframe {{ display: none; }}
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -44,6 +47,7 @@ for title, items in data.items():
                 <h2 class="text-xl font-bold mb-4 text-blue-300">{title}</h2>
                 <ul class="space-y-3">
     """
+    
     for item in items:
         url_hash = hashlib.md5(item.encode()).hexdigest()
         html_content += f"""
@@ -59,184 +63,176 @@ for title, items in data.items():
                         </div>
                     </li>
         """
+    
     html_content += """
                 </ul>
             </div>
     """
 
-html_content += """
+html_content += f"""
         </div>
     </div>
 
     <script>
-    const CACHE_VERSION = 2;  // Updated version for new validation rules
+    const BLOCKED_DOMAINS = {json.dumps(BLOCKED_DOMAINS)};
+    const CACHE_VERSION = 3;
     const CACHE_PREFIX = 'urlValidator::';
     const CACHE_TTL = 3600000;
     const BATCH_SIZE = 3;
     const DELAY_BETWEEN_CHECKS = 300;
 
-    function getCacheKey(url) {
+    function getCacheKey(url) {{
         return CACHE_PREFIX + url;
-    }
+    }}
 
-    function isBlockedDomain(url) {
-        try {
-            const { hostname } = new URL(url);
-            return hostname.includes('vercel.app');
-        } catch {
+    function isBlockedDomain(url) {{
+        try {{
+            const hostname = new URL(url).hostname;
+            return BLOCKED_DOMAINS.some(domain => hostname.includes(domain));
+        }} catch {{
             return false;
-        }
-    }
+        }}
+    }}
 
-    function clearCache() {
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith(CACHE_PREFIX)) {
+    function clearCache() {{
+        Object.keys(localStorage).forEach(key => {{
+            if (key.startsWith(CACHE_PREFIX)) {{
                 localStorage.removeItem(key);
-            }
-        });
+            }}
+        }});
         window.location.reload();
-    }
+    }}
 
-    async function validateUrl(url, hash) {
+    async function validateUrl(url, hash) {{
         const cacheKey = getCacheKey(hash);
         
-        // Immediate block for vercel.app domains
-        if (isBlockedDomain(url)) {
-            localStorage.setItem(cacheKey, JSON.stringify({
+        if (isBlockedDomain(url)) {{
+            localStorage.setItem(cacheKey, JSON.stringify({{
                 status: false,
                 timestamp: Date.now()
-            }));
+            }}));
             return false;
-        }
+        }}
 
         const cached = localStorage.getItem(cacheKey);        
-        if (cached) {
-            const { status, timestamp } = JSON.parse(cached);
-            if (Date.now() - timestamp < CACHE_TTL) {
+        if (cached) {{
+            const {{ status, timestamp }} = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_TTL) {{
                 return status;
-            }
-        }
+            }}
+        }}
 
-        return new Promise((resolve) => {
+        return new Promise((resolve) => {{
             const iframe = document.createElement('iframe');
             let timeout;
 
-            const cleanup = () => {
+            const cleanup = () => {{
                 clearTimeout(timeout);
                 iframe.remove();
-            };
+            }};
 
-            iframe.onload = () => {
-                try {
+            iframe.onload = () => {{
+                try {{
                     const doc = iframe.contentDocument || iframe.contentWindow.document;
                     const errorElement = doc.getElementById('main-frame-error');
                     const isChromeError = getComputedStyle(doc.documentElement)
                         .backgroundImage.includes('linear-gradient(45deg, #f3f4f6 25%');
                     
                     const isValid = !errorElement && !isChromeError;
-                    localStorage.setItem(cacheKey, JSON.stringify({
+                    localStorage.setItem(cacheKey, JSON.stringify({{
                         status: isValid,
                         timestamp: Date.now()
-                    }));
+                    }}));
                     resolve(isValid);
-                } catch (error) {
-                    localStorage.setItem(cacheKey, JSON.stringify({
+                }} catch (error) {{
+                    localStorage.setItem(cacheKey, JSON.stringify({{
                         status: true,
                         timestamp: Date.now()
-                    }));
+                    }}));
                     resolve(true);
-                }
+                }}
                 cleanup();
-            };
+            }};
 
-            iframe.onerror = () => {
-                localStorage.setItem(cacheKey, JSON.stringify({
+            iframe.onerror = () => {{
+                localStorage.setItem(cacheKey, JSON.stringify({{
                     status: false,
                     timestamp: Date.now()
-                }));
+                }}));
                 resolve(false);
                 cleanup();
-            };
+            }};
 
-            timeout = setTimeout(() => {
-                localStorage.setItem(cacheKey, JSON.stringify({
+            timeout = setTimeout(() => {{
+                localStorage.setItem(cacheKey, JSON.stringify({{
                     status: false,
                     timestamp: Date.now()
-                }));
+                }}));
                 resolve(false);
                 cleanup();
-            }, 4000);
+            }}, 4000);
 
             iframe.src = url;
             document.body.appendChild(iframe);
-        });
-    }
+        }});
+    }}
 
-    async function processBatch(batch) {
+    async function processBatch(batch) {{
         const promises = batch.map((item, index) => 
             new Promise(resolve => 
-                setTimeout(async () => {
-                    const dot = item.querySelector('.status-dot');
-                    const link = item.querySelector('a');
+                setTimeout(async () => {{
                     const url = item.dataset.url;
                     const hash = item.dataset.hash;
 
-                    if (!localStorage.getItem(getCacheKey(hash))) {
-                        try {
-                            const isValid = await validateUrl(url, hash);
-                            dot.style.backgroundColor = isValid ? '#10b981' : '#ef4444';
-                            if (!isValid) {
-                                item.classList.add('cached-error');
-                                link.removeAttribute('href');
-                            }
-                        } catch {
-                            dot.style.backgroundColor = '#ef4444';
-                            item.classList.add('cached-error');
-                            link.removeAttribute('href');
-                        }
-                    }
+                    try {{
+                        const isValid = await validateUrl(url, hash);
+                        if (!isValid) {{
+                            item.remove();
+                        }}
+                    }} catch {{
+                        item.remove();
+                    }}
                     resolve();
-                }, index * DELAY_BETWEEN_CHECKS)
+                }}, index * DELAY_BETWEEN_CHECKS)
             )
         );
         await Promise.all(promises);
-    }
+    }}
 
-    async function processUrls() {
-        const items = Array.from(document.querySelectorAll('.url-item'));
-        
-        // Apply cached results first
-        items.forEach(item => {
+    async function processUrls() {{
+        // Remove blocked domains immediately
+        document.querySelectorAll('.url-item').forEach(item => {{
+            if (isBlockedDomain(item.dataset.url)) {{
+                item.remove();
+            }}
+        }});
+
+        // Remove cached invalid items
+        document.querySelectorAll('.url-item').forEach(item => {{
             const hash = item.dataset.hash;
             const cacheKey = getCacheKey(hash);
             const cached = localStorage.getItem(cacheKey);
-            const dot = item.querySelector('.status-dot');
-            const link = item.querySelector('a');
+            
+            if (cached) {{
+                const {{ status }} = JSON.parse(cached);
+                if (!status) {{
+                    item.remove();
+                }}
+            }}
+        }});
 
-            if (cached) {
-                const { status } = JSON.parse(cached);
-                dot.style.backgroundColor = status ? '#10b981' : '#ef4444';
-                if (!status) {
-                    item.classList.add('cached-error');
-                    link.removeAttribute('href');
-                }
-            } else if (isBlockedDomain(item.dataset.url)) {
-                dot.style.backgroundColor = '#ef4444';
-                item.classList.add('cached-error');
-                link.removeAttribute('href');
-            }
-        });
-
-        // Process in batches
+        // Process remaining valid items in batches
+        const items = Array.from(document.querySelectorAll('.url-item'));
         const batches = [];
-        for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        for (let i = 0; i < items.length; i += BATCH_SIZE) {{
             batches.push(items.slice(i, i + BATCH_SIZE));
-        }
+        }}
 
-        for (const batch of batches) {
+        for (const batch of batches) {{
             await processBatch(batch);
-        }
-    }
+            await new Promise(r => setTimeout(r, DELAY_BETWEEN_CHECKS));
+        }}
+    }}
 
     window.addEventListener('DOMContentLoaded', processUrls);
     </script>
