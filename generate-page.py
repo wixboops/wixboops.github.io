@@ -21,6 +21,9 @@ html_content = """
         .scroll-transition:hover {
             opacity: 1 !important;
         }
+        iframe {
+            display: none; /* Hide the iframe */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -40,10 +43,11 @@ for title, items in data.items():
     """
     for item in items:
         html_content += f"""
-                    <li>
+                    <li id="li-{item}" class="url-item">
                         <a href="{item}" class="block p-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors" target="_blank" rel="noopener noreferrer">
                             {item}
                         </a>
+                        <iframe id="iframe-{item}" src="{item}" onload="markUrlReachable('{item}')" onerror="markUrlUnreachable('{item}')"></iframe>
                     </li>
         """
     html_content += """
@@ -63,6 +67,25 @@ html_content += """
             dropdown.classList.toggle('hidden');
         }
 
+        // Mark URL as reachable
+        function markUrlReachable(url) {
+            const li = document.getElementById(`li-${url}`);
+            if (li) {
+                li.querySelector('a').classList.add('bg-green-600', 'hover:bg-green-500');
+            }
+        }
+
+        // Mark URL as unreachable
+        function markUrlUnreachable(url) {
+            const li = document.getElementById(`li-${url}`);
+            if (li) {
+                li.querySelector('a').classList.add('bg-red-600', 'hover:bg-red-500');
+                setTimeout(() => {
+                    li.remove(); // Remove the URL from the list after a delay
+                }, 2000); // 2 seconds delay
+            }
+        }
+
         // Scroll animation for seamless looping
         document.addEventListener('scroll', () => {
             const elements = document.querySelectorAll('.scroll-transition');
@@ -72,6 +95,30 @@ html_content += """
                 el.style.opacity = isVisible ? 1 : 0.3;
             });
         });
+
+        // Check URLs concurrently (up to 3 at a time)
+        const urlItems = document.querySelectorAll('.url-item');
+        const maxConcurrentChecks = 3;
+        let currentIndex = 0;
+
+        function checkNextUrls() {
+            const batch = Array.from(urlItems).slice(currentIndex, currentIndex + maxConcurrentChecks);
+            currentIndex += maxConcurrentChecks;
+
+            batch.forEach(li => {
+                const iframe = li.querySelector('iframe');
+                if (iframe) {
+                    iframe.src = iframe.src; // Force reload to trigger onload/onerror
+                }
+            });
+
+            if (currentIndex < urlItems.length) {
+                setTimeout(checkNextUrls, 1000); // Check next batch after 1 second
+            }
+        }
+
+        // Start checking URLs
+        checkNextUrls();
     </script>
 </body>
 </html>
