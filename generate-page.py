@@ -14,15 +14,11 @@ html_content = """
     <title>Interactive Dropdown Menu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom scroll animation */
         .scroll-transition {
             transition: opacity 0.5s ease-in-out;
         }
         .scroll-transition:hover {
             opacity: 1 !important;
-        }
-        iframe {
-            display: none; /* Hide the iframe */
         }
     </style>
 </head>
@@ -46,8 +42,8 @@ for title, items in data.items():
                     <li id="li-{item}" class="url-item">
                         <a href="{item}" class="block p-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors" target="_blank" rel="noopener noreferrer">
                             {item}
+                            <span id="status-{item}" class="ml-2"></span>
                         </a>
-                        <iframe id="iframe-{item}" src="{item}" onload="markUrlReachable('{item}')" onerror="markUrlUnreachable('{item}')"></iframe>
                     </li>
         """
     html_content += """
@@ -67,68 +63,56 @@ html_content += """
             dropdown.classList.toggle('hidden');
         }
 
-        // Mark URL as reachable
-        function markUrlReachable(url) {
-            const li = document.getElementById(`li-${url}`);
-            if (li) {
-                li.querySelector('a').classList.add('bg-green-600', 'hover:bg-green-500');
-                removeIframe(url); // Remove the iframe after the check
+        // Check if a URL is reachable
+        async function checkUrlReachability(url) {
+            try {
+                const response = await fetch(url, {
+                    method: 'HEAD', // Lightweight check (no need to download content)
+                    mode: 'no-cors' // Bypass CORS restrictions for simple reachability
+                });
+                return true;
+            } catch (error) {
+                return false;
             }
         }
 
-        // Mark URL as unreachable
-        function markUrlUnreachable(url) {
-            const li = document.getElementById(`li-${url}`);
-            if (li) {
-                li.querySelector('a').classList.add('bg-red-600', 'hover:bg-red-500');
+        // Update UI based on URL status
+        async function updateUrlStatus(url) {
+            const isReachable = await checkUrlReachability(url);
+            const statusElement = document.getElementById(`status-${url}`);
+            const liElement = document.getElementById(`li-${url}`);
+
+            if (isReachable) {
+                statusElement.textContent = '✓';
+                statusElement.classList.add('text-green-400');
+            } else {
+                statusElement.textContent = '✕';
+                statusElement.classList.add('text-red-400');
                 setTimeout(() => {
-                    li.remove(); // Remove the URL from the list after a delay
-                }, 2000); // 2 seconds delay
-                removeIframe(url); // Remove the iframe after the check
+                    liElement.remove(); // Remove unreachable URLs after 2 seconds
+                }, 2000);
             }
         }
 
-        // Remove the iframe after the check
-        function removeIframe(url) {
-            const iframe = document.getElementById(`iframe-${url}`);
-            if (iframe) {
-                iframe.remove();
+        // Process URLs in batches (3 at a time)
+        async function processUrls() {
+            const urlElements = document.querySelectorAll('.url-item');
+            const maxConcurrentChecks = 3;
+            
+            for (let i = 0; i < urlElements.length; i += maxConcurrentChecks) {
+                const batch = Array.from(urlElements).slice(i, i + maxConcurrentChecks);
+                await Promise.all(
+                    batch.map(li => {
+                        const url = li.querySelector('a').href;
+                        return updateUrlStatus(url);
+                    })
+                );
+                await new Promise(resolve => setTimeout(resolve, 200)); // 0.2s delay
             }
         }
 
-        // Scroll animation for seamless looping
-        document.addEventListener('scroll', () => {
-            const elements = document.querySelectorAll('.scroll-transition');
-            elements.forEach(el => {
-                const rect = el.getBoundingClientRect();
-                const isVisible = rect.top < window.innerHeight && rect.bottom >= 0;
-                el.style.opacity = isVisible ? 1 : 0.3;
-            });
-        });
-
-        // Check URLs concurrently (up to 3 at a time)
-        const urlItems = document.querySelectorAll('.url-item');
-        const maxConcurrentChecks = 3;
-        let currentIndex = 0;
-
-        function checkNextUrls() {
-            const batch = Array.from(urlItems).slice(currentIndex, currentIndex + maxConcurrentChecks);
-            currentIndex += maxConcurrentChecks;
-
-            batch.forEach(li => {
-                const iframe = li.querySelector('iframe');
-                if (iframe) {
-                    iframe.src = iframe.src; // Force reload to trigger onload/onerror
-                }
-            });
-
-            if (currentIndex < urlItems.length) {
-                setTimeout(checkNextUrls, 200); // Check next batch after 0.2 seconds
-            }
-        }
-
-        // Start checking URLs
-        setTimeout(checkNextUrls, 200); // Initial delay of 0.2 seconds
+        // Start processing URLs
+        processUrls();
     </script>
 </body>
 </html>
