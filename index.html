@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URL Validator with Batching</title>
+    <title>Secure Link Validator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .status-dot {
@@ -15,11 +15,6 @@
             transition: all 0.3s ease;
         }
         iframe { display: none; }
-        .cached-error a {
-            opacity: 0.5;
-            pointer-events: none;
-            text-decoration: line-through;
-        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -7623,7 +7618,8 @@
     </div>
 
     <script>
-    const CACHE_VERSION = 2;  // Updated version for new validation rules
+    const BLOCKED_DOMAINS = ["vercel.app", "dock1.com", "585.eu", "cissp.or.id"];
+    const CACHE_VERSION = 3;
     const CACHE_PREFIX = 'urlValidator::';
     const CACHE_TTL = 3600000;
     const BATCH_SIZE = 3;
@@ -7635,8 +7631,8 @@
 
     function isBlockedDomain(url) {
         try {
-            const { hostname } = new URL(url);
-            return hostname.includes('vercel.app');
+            const hostname = new URL(url).hostname;
+            return BLOCKED_DOMAINS.some(domain => hostname.includes(domain));
         } catch {
             return false;
         }
@@ -7654,7 +7650,6 @@
     async function validateUrl(url, hash) {
         const cacheKey = getCacheKey(hash);
         
-        // Immediate block for vercel.app domains
         if (isBlockedDomain(url)) {
             localStorage.setItem(cacheKey, JSON.stringify({
                 status: false,
@@ -7730,24 +7725,16 @@
         const promises = batch.map((item, index) => 
             new Promise(resolve => 
                 setTimeout(async () => {
-                    const dot = item.querySelector('.status-dot');
-                    const link = item.querySelector('a');
                     const url = item.dataset.url;
                     const hash = item.dataset.hash;
 
-                    if (!localStorage.getItem(getCacheKey(hash))) {
-                        try {
-                            const isValid = await validateUrl(url, hash);
-                            dot.style.backgroundColor = isValid ? '#10b981' : '#ef4444';
-                            if (!isValid) {
-                                item.classList.add('cached-error');
-                                link.removeAttribute('href');
-                            }
-                        } catch {
-                            dot.style.backgroundColor = '#ef4444';
-                            item.classList.add('cached-error');
-                            link.removeAttribute('href');
+                    try {
+                        const isValid = await validateUrl(url, hash);
+                        if (!isValid) {
+                            item.remove();
                         }
+                    } catch {
+                        item.remove();
                     }
                     resolve();
                 }, index * DELAY_BETWEEN_CHECKS)
@@ -7757,31 +7744,29 @@
     }
 
     async function processUrls() {
-        const items = Array.from(document.querySelectorAll('.url-item'));
-        
-        // Apply cached results first
-        items.forEach(item => {
-            const hash = item.dataset.hash;
-            const cacheKey = getCacheKey(hash);
-            const cached = localStorage.getItem(cacheKey);
-            const dot = item.querySelector('.status-dot');
-            const link = item.querySelector('a');
-
-            if (cached) {
-                const { status } = JSON.parse(cached);
-                dot.style.backgroundColor = status ? '#10b981' : '#ef4444';
-                if (!status) {
-                    item.classList.add('cached-error');
-                    link.removeAttribute('href');
-                }
-            } else if (isBlockedDomain(item.dataset.url)) {
-                dot.style.backgroundColor = '#ef4444';
-                item.classList.add('cached-error');
-                link.removeAttribute('href');
+        // Remove blocked domains immediately
+        document.querySelectorAll('.url-item').forEach(item => {
+            if (isBlockedDomain(item.dataset.url)) {
+                item.remove();
             }
         });
 
-        // Process in batches
+        // Remove cached invalid items
+        document.querySelectorAll('.url-item').forEach(item => {
+            const hash = item.dataset.hash;
+            const cacheKey = getCacheKey(hash);
+            const cached = localStorage.getItem(cacheKey);
+            
+            if (cached) {
+                const { status } = JSON.parse(cached);
+                if (!status) {
+                    item.remove();
+                }
+            }
+        });
+
+        // Process remaining valid items in batches
+        const items = Array.from(document.querySelectorAll('.url-item'));
         const batches = [];
         for (let i = 0; i < items.length; i += BATCH_SIZE) {
             batches.push(items.slice(i, i + BATCH_SIZE));
@@ -7789,6 +7774,7 @@
 
         for (const batch of batches) {
             await processBatch(batch);
+            await new Promise(r => setTimeout(r, DELAY_BETWEEN_CHECKS));
         }
     }
 
