@@ -63,12 +63,13 @@ html_content += """
             dropdown.classList.toggle('hidden');
         }
 
-        // Check if a URL is reachable
+        // Check if a URL is reachable with better error handling
         async function checkUrlReachability(url) {
             try {
                 const response = await fetch(url, {
-                    method: 'HEAD', // Lightweight check (no need to download content)
-                    mode: 'no-cors' // Bypass CORS restrictions for simple reachability
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    redirect: 'manual'
                 });
                 return true;
             } catch (error) {
@@ -76,43 +77,55 @@ html_content += """
             }
         }
 
-        // Update UI based on URL status
+        // Update UI with null checks
         async function updateUrlStatus(url) {
-            const isReachable = await checkUrlReachability(url);
-            const statusElement = document.getElementById(`status-${url}`);
-            const liElement = document.getElementById(`li-${url}`);
+            try {
+                const isReachable = await checkUrlReachability(url);
+                const statusElement = document.getElementById(`status-${url}`);
+                const liElement = document.getElementById(`li-${url}`);
 
-            if (isReachable) {
-                statusElement.textContent = '✓';
-                statusElement.classList.add('text-green-400');
-            } else {
-                statusElement.textContent = '✕';
-                statusElement.classList.add('text-red-400');
-                setTimeout(() => {
-                    liElement.remove(); // Remove unreachable URLs after 2 seconds
-                }, 2000);
+                if (!statusElement || !liElement) return;
+
+                if (isReachable) {
+                    statusElement.textContent = '✓';
+                    statusElement.classList.add('text-green-400');
+                } else {
+                    statusElement.textContent = '✕';
+                    statusElement.classList.add('text-red-400');
+                    setTimeout(() => {
+                        if (document.body.contains(liElement)) {
+                            liElement.remove();
+                        }
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error(`Error checking ${url}:`, error);
             }
         }
 
-        // Process URLs in batches (3 at a time)
+        // Process URLs with improved error handling
         async function processUrls() {
-            const urlElements = document.querySelectorAll('.url-item');
-            const maxConcurrentChecks = 3;
-            
-            for (let i = 0; i < urlElements.length; i += maxConcurrentChecks) {
-                const batch = Array.from(urlElements).slice(i, i + maxConcurrentChecks);
-                await Promise.all(
-                    batch.map(li => {
-                        const url = li.querySelector('a').href;
-                        return updateUrlStatus(url);
-                    })
-                );
-                await new Promise(resolve => setTimeout(resolve, 200)); // 0.2s delay
+            try {
+                const urlElements = document.querySelectorAll('.url-item');
+                const maxConcurrentChecks = 3;
+                
+                for (let i = 0; i < urlElements.length; i += maxConcurrentChecks) {
+                    const batch = Array.from(urlElements).slice(i, i + maxConcurrentChecks);
+                    await Promise.allSettled(
+                        batch.map(li => {
+                            const url = li.querySelector('a')?.href;
+                            return url ? updateUrlStatus(url) : Promise.resolve();
+                        })
+                    );
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            } catch (error) {
+                console.error('URL processing error:', error);
             }
         }
 
-        // Start processing URLs
-        processUrls();
+        // Start processing URLs after initial render
+        window.addEventListener('DOMContentLoaded', processUrls);
     </script>
 </body>
 </html>
