@@ -11,28 +11,33 @@ html_content = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Dropdown Menu</title>
+    <title>URL Availability Checker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .scroll-transition {
-            transition: opacity 0.5s ease-in-out;
+        iframe {
+            display: none !important;
         }
-        .scroll-transition:hover {
-            opacity: 1 !important;
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
     <div class="container mx-auto p-4">
-        <h1 class="text-4xl font-bold text-center mb-8">Interactive Dropdown Menu</h1>
+        <h1 class="text-4xl font-bold text-center mb-8">Proxy List Status Check</h1>
         <div class="space-y-4">
 """
 
 # Add buttons and dropdowns for each title
 for title, items in data.items():
     html_content += f"""
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
-                <button onclick="toggleDropdown('{title}')" class="w-full text-left text-xl font-semibold focus:outline-none">
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg fade-in">
+                <button onclick="toggleDropdown('{title}')" 
+                        class="w-full text-left text-xl font-semibold focus:outline-none hover:bg-gray-700 p-2 rounded">
                     {title}
                 </button>
                 <ul id="{title}" class="mt-2 space-y-2 hidden">
@@ -40,10 +45,10 @@ for title, items in data.items():
     for item in items:
         html_content += f"""
                     <li id="li-{item}" class="url-item">
-                        <a href="{item}" class="block p-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors" target="_blank" rel="noopener noreferrer">
-                            {item}
-                            <span id="status-{item}" class="ml-2"></span>
-                        </a>
+                        <div class="flex items-center p-2 bg-gray-700 rounded">
+                            <span class="status-indicator w-3 h-3 rounded-full mr-2"></span>
+                            <a href="{item}" class="hover:text-blue-400 transition-colors" target="_blank">{item}</a>
+                        </div>
                     </li>
         """
     html_content += """
@@ -51,87 +56,57 @@ for title, items in data.items():
             </div>
     """
 
-# Close the HTML content
 html_content += """
         </div>
     </div>
 
     <script>
-        // Toggle dropdown visibility
+        async function checkUrlsSequentially() {
+            const urlItems = Array.from(document.querySelectorAll('.url-item'));
+            
+            for (const item of urlItems) {
+                const url = item.querySelector('a').href;
+                const indicator = item.querySelector('.status-indicator');
+                
+                await new Promise((resolve) => {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    
+                    const cleanup = () => {
+                        iframe.remove();
+                        setTimeout(resolve, 200); // 0.2s delay between checks
+                    };
+
+                    iframe.onload = () => {
+                        indicator.classList.add('bg-green-500');
+                        cleanup();
+                    };
+                    
+                    iframe.onerror = () => {
+                        indicator.classList.add('bg-red-500');
+                        setTimeout(() => {
+                            item.classList.add('opacity-50', 'line-through');
+                        }, 2000);
+                        cleanup();
+                    };
+                    
+                    document.body.appendChild(iframe);
+                });
+            }
+        }
+
         function toggleDropdown(id) {
             const dropdown = document.getElementById(id);
             dropdown.classList.toggle('hidden');
         }
 
-        // Check if a URL is reachable with better error handling
-        async function checkUrlReachability(url) {
-            try {
-                const response = await fetch(url, {
-                    method: 'HEAD',
-                    mode: 'no-cors',
-                    redirect: 'manual'
-                });
-                return true;
-            } catch (error) {
-                return false;
-            }
-        }
-
-        // Update UI with null checks
-        async function updateUrlStatus(url) {
-            try {
-                const isReachable = await checkUrlReachability(url);
-                const statusElement = document.getElementById(`status-${url}`);
-                const liElement = document.getElementById(`li-${url}`);
-
-                if (!statusElement || !liElement) return;
-
-                if (isReachable) {
-                    statusElement.textContent = '✓';
-                    statusElement.classList.add('text-green-400');
-                } else {
-                    statusElement.textContent = '✕';
-                    statusElement.classList.add('text-red-400');
-                    setTimeout(() => {
-                        if (document.body.contains(liElement)) {
-                            liElement.remove();
-                        }
-                    }, 2000);
-                }
-            } catch (error) {
-                console.error(`Error checking ${url}:`, error);
-            }
-        }
-
-        // Process URLs with improved error handling
-        async function processUrls() {
-            try {
-                const urlElements = document.querySelectorAll('.url-item');
-                const maxConcurrentChecks = 3;
-                
-                for (let i = 0; i < urlElements.length; i += maxConcurrentChecks) {
-                    const batch = Array.from(urlElements).slice(i, i + maxConcurrentChecks);
-                    await Promise.allSettled(
-                        batch.map(li => {
-                            const url = li.querySelector('a')?.href;
-                            return url ? updateUrlStatus(url) : Promise.resolve();
-                        })
-                    );
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-            } catch (error) {
-                console.error('URL processing error:', error);
-            }
-        }
-
-        // Start processing URLs after initial render
-        window.addEventListener('DOMContentLoaded', processUrls);
+        // Start checking when page loads
+        window.addEventListener('DOMContentLoaded', checkUrlsSequentially);
     </script>
 </body>
 </html>
 """
 
-# Save the HTML file
 with open("index.html", "w", encoding="utf-8") as file:
     file.write(html_content)
 
