@@ -43,6 +43,10 @@ for h2 in h2_elements:
     # Get the <h2> title
     title = h2.text.strip()
     
+    # Skip if the title is "Table of Contents"
+    if title == "Table of Contents":
+        continue
+    
     # Find the next <ul> elements that follow the <h2>
     ul_elements = []
     next_element = h2.find_next_sibling()
@@ -56,6 +60,10 @@ for h2 in h2_elements:
     for ul in ul_elements:
         for li in ul.find_all("li"):
             list_items.append(li.text.strip())
+    
+    # Skip if the list is empty
+    if not list_items:
+        continue
     
     # Add the title and list items to the dictionary
     data[title] = list_items
