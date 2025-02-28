@@ -1,0 +1,28 @@
+name: Scrape Website Hourly
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs at the 0th minute of every hour (hourly)
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  scrape-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GH_TOKEN }}  # Required for pushing changes
+        persist-credentials: false
+
+    - name: Scrape webpage
+      run: |
+        curl https://nirbytes.com/post/1000-proxies-for-school-chromebook-2024 -o scraped-page.html
+
+    - name: Commit changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add scraped-page.html
+        git commit -m "Auto-update scraped page"
+        git push
