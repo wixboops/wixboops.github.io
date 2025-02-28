@@ -55,7 +55,10 @@ with open("extracted-data.html", "w", encoding="utf-8") as file:
         for ul in ul_elements:
             file.write("<ul>\n")
             for li in ul.find_all("li"):
-                file.write(f"<li>{li.text}</li>\n")
+                # Extract the URL from the <li> text
+                url_text = li.text.strip()
+                # Create a hyperlink for the URL
+                file.write(f'<li><a href="{url_text}">{url_text}</a></li>\n')
             file.write("</ul>\n")
     
     file.write("</body></html>\n")
