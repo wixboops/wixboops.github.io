@@ -72,6 +72,7 @@ html_content += """
             const li = document.getElementById(`li-${url}`);
             if (li) {
                 li.querySelector('a').classList.add('bg-green-600', 'hover:bg-green-500');
+                removeIframe(url); // Remove the iframe after the check
             }
         }
 
@@ -83,6 +84,15 @@ html_content += """
                 setTimeout(() => {
                     li.remove(); // Remove the URL from the list after a delay
                 }, 2000); // 2 seconds delay
+                removeIframe(url); // Remove the iframe after the check
+            }
+        }
+
+        // Remove the iframe after the check
+        function removeIframe(url) {
+            const iframe = document.getElementById(`iframe-${url}`);
+            if (iframe) {
+                iframe.remove();
             }
         }
 
@@ -113,12 +123,12 @@ html_content += """
             });
 
             if (currentIndex < urlItems.length) {
-                setTimeout(checkNextUrls, 1000); // Check next batch after 1 second
+                setTimeout(checkNextUrls, 200); // Check next batch after 0.2 seconds
             }
         }
 
         // Start checking URLs
-        checkNextUrls();
+        setTimeout(checkNextUrls, 200); // Initial delay of 0.2 seconds
     </script>
 </body>
 </html>
