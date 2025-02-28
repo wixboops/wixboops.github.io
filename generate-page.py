@@ -1,53 +1,48 @@
 import json
 
-# Load the JSON data
 with open("extracted-data.json", "r", encoding="utf-8") as file:
     data = json.load(file)
 
-# Generate the HTML content
 html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URL Availability Checker</title>
+    <title>Proxy Validation System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        iframe {
-            display: none !important;
+        .status-dot { 
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
         }
-        .fade-in {
-            animation: fadeIn 0.3s ease-in;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        .checking { background: #94a3b8; }
+        .valid { background: #10b981; }
+        .invalid { background: #ef4444; }
+        iframe { display: none; }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
+<body class="bg-gray-900 text-gray-100">
     <div class="container mx-auto p-4">
-        <h1 class="text-4xl font-bold text-center mb-8">Proxy List Status Check</h1>
+        <h1 class="text-3xl font-bold mb-6 text-center">Proxy Server Status</h1>
         <div class="space-y-4">
 """
 
-# Add buttons and dropdowns for each title
 for title, items in data.items():
     html_content += f"""
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg fade-in">
-                <button onclick="toggleDropdown('{title}')" 
-                        class="w-full text-left text-xl font-semibold focus:outline-none hover:bg-gray-700 p-2 rounded">
-                    {title}
-                </button>
-                <ul id="{title}" class="mt-2 space-y-2 hidden">
+            <div class="bg-gray-800 rounded-lg p-4 shadow-xl">
+                <h2 class="text-xl font-semibold mb-2">{title}</h2>
+                <ul class="space-y-2">
     """
-    for item in items:
+    for idx, item in enumerate(items):
         html_content += f"""
-                    <li id="li-{item}" class="url-item">
-                        <div class="flex items-center p-2 bg-gray-700 rounded">
-                            <span class="status-indicator w-3 h-3 rounded-full mr-2"></span>
-                            <a href="{item}" class="hover:text-blue-400 transition-colors" target="_blank">{item}</a>
+                    <li class="proxy-item" data-url="{item}">
+                        <div class="flex items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+                            <span class="status-dot checking"></span>
+                            <span class="url">{item}</span>
                         </div>
                     </li>
         """
@@ -61,47 +56,71 @@ html_content += """
     </div>
 
     <script>
-        async function checkUrlsSequentially() {
-            const urlItems = Array.from(document.querySelectorAll('.url-item'));
+    async function validateProxy(url) {
+        return new Promise((resolve) => {
+            const iframe = document.createElement('iframe');
+            let timeoutId;
+
+            const cleanup = () => {
+                clearTimeout(timeoutId);
+                iframe.remove();
+            };
+
+            // First check: Basic iframe load
+            iframe.onload = () => {
+                cleanup();
+                // Secondary check: API endpoint verification
+                fetch('https://httpbin.org/get', { 
+                    mode: 'no-cors',
+                    headers: { 'Target-URL': url }
+                })
+                .then(() => resolve(true))
+                .catch(() => resolve(false));
+            };
+
+            iframe.onerror = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            timeoutId = setTimeout(() => {
+                cleanup();
+                resolve(false);
+            }, 5000);
+
+            iframe.src = url;
+            document.body.appendChild(iframe);
+        });
+    }
+
+    async function checkProxies() {
+        const proxies = Array.from(document.querySelectorAll('.proxy-item'));
+        
+        for (const proxy of proxies) {
+            const dot = proxy.querySelector('.status-dot');
+            const url = proxy.dataset.url;
             
-            for (const item of urlItems) {
-                const url = item.querySelector('a').href;
-                const indicator = item.querySelector('.status-indicator');
+            dot.classList.replace('checking', 'invalid');
+            
+            try {
+                const isValid = await validateProxy(url);
+                dot.classList.replace('invalid', isValid ? 'valid' : 'invalid');
                 
-                await new Promise((resolve) => {
-                    const iframe = document.createElement('iframe');
-                    iframe.src = url;
-                    
-                    const cleanup = () => {
-                        iframe.remove();
-                        setTimeout(resolve, 200); // 0.2s delay between checks
-                    };
-
-                    iframe.onload = () => {
-                        indicator.classList.add('bg-green-500');
-                        cleanup();
-                    };
-                    
-                    iframe.onerror = () => {
-                        indicator.classList.add('bg-red-500');
-                        setTimeout(() => {
-                            item.classList.add('opacity-50', 'line-through');
-                        }, 2000);
-                        cleanup();
-                    };
-                    
-                    document.body.appendChild(iframe);
-                });
+                if (!isValid) {
+                    setTimeout(() => {
+                        proxy.style.opacity = '0.3';
+                        proxy.style.textDecoration = 'line-through';
+                    }, 2000);
+                }
+            } catch {
+                dot.classList.replace('invalid', 'invalid');
             }
+            
+            await new Promise(r => setTimeout(r, 200));
         }
+    }
 
-        function toggleDropdown(id) {
-            const dropdown = document.getElementById(id);
-            dropdown.classList.toggle('hidden');
-        }
-
-        // Start checking when page loads
-        window.addEventListener('DOMContentLoaded', checkUrlsSequentially);
+    window.addEventListener('DOMContentLoaded', checkProxies);
     </script>
 </body>
 </html>
@@ -109,5 +128,3 @@ html_content += """
 
 with open("index.html", "w", encoding="utf-8") as file:
     file.write(html_content)
-
-print("Page generation completed successfully. File saved as index.html.")
